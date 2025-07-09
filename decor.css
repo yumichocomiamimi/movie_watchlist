@@ -1,0 +1,231 @@
+body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: linear-gradient(135deg, #0f2027 0%, #2c5364 100%);
+    margin: 0;
+    padding: 0 0 40px 0;
+    min-height: 100vh;
+    box-sizing: border-box;
+}
+
+h1, h2 {
+    text-align: center;
+    color: #00e6ff;
+    text-shadow: 0 2px 8px #00e6ff40;
+    letter-spacing: 2px;
+    margin-top: 32px;
+    margin-bottom: 16px;
+}
+
+#searchBar {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 32px 0 24px 0;
+    gap: 0;
+}
+#watchlist .movie-info button {
+    background: linear-gradient(90deg, #00bcd4 0%, #0097a7 100%);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 500;
+    margin-top: 14px;
+    padding: 8px 18px;
+    transition: background 0.2s, box-shadow 0.2s, color 0.2s;
+    box-shadow: 0 2px 8px #00e6ff22;
+}
+
+#watchlist .movie-info button:hover,
+#watchlist .movie-info button:focus {
+    background: linear-gradient(90deg, #b2fefa 0%, #00e6ff 100%);
+    color: #16213e;
+    box-shadow: 0 4px 16px #00e6ff44;
+}
+#searchInput {
+    padding: 12px;
+    font-size: 18px;
+    border: 1.5px solid #1de9b6;
+    border-radius: 8px 0 0 8px;
+    outline: none;
+    width: 290px;
+    background: #16213e;
+    color: #e0f7fa;
+    transition: border 0.2s, box-shadow 0.2s;
+    box-shadow: 0 2px 8px #00e6ff22;
+}
+
+#searchInput:focus {
+    border-color: #00e6ff;
+    box-shadow: 0 0 0 2px #00e6ff44;
+}
+
+#searchBar button {
+    padding: 12px 24px;
+    font-size: 18px;
+    border: 1.5px solid #00e6ff;
+    border-left: none;
+    background: linear-gradient(90deg, #00e6ff 0%, #1de9b6 100%);
+    color: #16213e;
+    font-weight: bold;
+    border-radius: 0 8px 8px 0;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+    box-shadow: 0 2px 8px #00e6ff33;
+}
+
+#searchBar button:hover, #searchBar button:focus {
+    background: linear-gradient(90deg, #b2fefa 0%, #00e6ff 100%);
+    color: #0f2027;
+    box-shadow: 0 4px 16px #00e6ff44;
+}
+
+#searchResults, #watchlist {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 24px;
+    margin: 32px auto;
+    max-width: 1200px;
+}
+
+.movie {
+    background: linear-gradient(135deg, #16213e 60%, #0f2027 100%);
+    border-radius: 16px;
+    box-shadow: 0 4px 18px 0 #00e6ff22, 0 1.5px 6px #00e6ff44;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 240px;
+    padding: 20px 16px 18px 16px;
+    transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s;
+    border: 2px solid #00e6ff33;
+    position: relative;
+    overflow: hidden;
+}
+
+.movie:hover, .movie:focus-within {
+    box-shadow: 0 8px 32px #00e6ff55, 0 2px 8px #00e6ff66;
+    transform: translateY(-6px) scale(1.04);
+    border-color: #00e6ff;
+    z-index: 2;
+}
+
+.movie img {
+    width: 150px;
+    height: 220px;
+    object-fit: cover;
+    border-radius: 8px;
+    margin-bottom: 14px;
+    box-shadow: 0 2px 10px #00e6ff33, 0 1px 4px #00e6ff44;
+    border: 2px solid #00e6ff44;
+    background: #16213e;
+    z-index: 1;
+    transition: transform 0.2s;
+}
+
+.movie:hover img, .movie:focus-within img {
+    transform: scale(1.03) rotate(-1deg);
+}
+
+.movie-info {
+    text-align: left;
+    font-size: 15px;
+    color: #e0f7fa;
+    width: 100%;
+    z-index: 3;
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    padding: 20px 16px 18px 16px;
+    background: rgba(22,33,62,0.98);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.movie:hover .movie-info,
+.movie:focus-within .movie-info {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.movie-info strong {
+    color: #00e6ff;
+    font-size: 18px;
+    letter-spacing: 1px;
+}
+
+.movie-info em {
+    color: #1de9b6;
+    font-style: normal;
+    font-weight: 500;
+}
+
+.movie-info button {
+    margin-top: 14px;
+    padding: 8px 18px;
+    background: linear-gradient(90deg, #00bcd4 0%, #0097a7 100%);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 500;
+    transition: background 0.2s, box-shadow 0.2s, color 0.2s;
+    box-shadow: 0 2px 8px #00e6ff22;
+}
+
+.movie-info button:hover, .movie-info button:focus {
+    background: linear-gradient(90deg, #b2fefa 0%, #00e6ff 100%);
+    color: #16213e;
+    box-shadow: 0 4px 16px #00e6ff44;
+}
+
+@media (max-width: 900px) {
+    #searchResults, #watchlist {
+        gap: 16px;
+        max-width: 98vw;
+    }
+    .movie {
+        width: 44vw;
+        min-width: 220px;
+        max-width: 320px;
+    }
+}
+
+@media (max-width: 700px) {
+    #searchResults, #watchlist {
+        flex-direction: column;
+        align-items: center;
+        gap: 18px;
+    }
+    .movie {
+        width: 92vw;
+        max-width: 360px;
+        min-width: 180px;
+    }
+    #searchInput {
+        width: 70vw;
+        min-width: 120px;
+        max-width: 320px;
+    }
+}
+
+::-webkit-scrollbar {
+    width: 10px;
+    background: #16213e;
+}
+::-webkit-scrollbar-thumb {
+    background: #00e6ff44;
+    border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #00e6ff88;
+}
