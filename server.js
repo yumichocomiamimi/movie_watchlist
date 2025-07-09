@@ -8,10 +8,8 @@ app.use(express.json());
 app.use(cors()); // Allow requests from frontend
 
 // MongoDB connection
-mongoose.connect('mongodb://localhost:27017/movie_list', {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-}).then(() => {
+mongoose.connect('mongodb://localhost:27017/movies')
+.then(() => {
     console.log('MongoDB connected');
     // Start server only after DB connects
     const PORT = 8080;
@@ -34,6 +32,25 @@ const movieSchema = new mongoose.Schema({
 
 const Movie = mongoose.model('Movie', movieSchema);
 
+// Search for a movie by title (partial match, case-insensitive, for autocomplete)
+app.get('/movies/search', async (req, res) => {
+    const { title } = req.query;
+    if (!title) {
+        return res.status(400).json({ error: 'Title query parameter is required.' });
+    }
+    try {
+        // Use regex for partial, case-insensitive match
+        const movies = await Movie.find({ title: { $regex: title, $options: 'i' } }).limit(10);
+        if (movies.length === 0) {
+            return res.status(404).json({ error: 'Movie not found.' });
+        }
+        res.json(movies);
+    } catch (err) {
+        console.error('Error searching for movie:', err);
+        res.status(500).json({ error: 'Error searching for movie.' });
+    }
+});
+
 // Get all movies
 app.get('/movies', async (_req, res) => {
     try {
@@ -45,23 +62,6 @@ app.get('/movies', async (_req, res) => {
     }
 });
 
-// Search for a movie by title (exact match, case-insensitive)
-app.get('/movies/search', async (req, res) => {
-    const { title } = req.query;
-    if (!title) {
-        return res.status(400).json({ error: 'Title query parameter is required.' });
-    }
-    try {
-        const movie = await Movie.findOne({ title: { $regex: `^${title}$`, $options: 'i' } });
-        if (!movie) {
-            return res.status(404).json({ error: 'Movie not found.' });
-        }
-        res.json(movie); // <-- Respond with the found movie
-    } catch (err) {
-        console.error('Error searching for movie:', err);
-        res.status(500).json({ error: 'Error searching for movie.' });
-    }
-});
 
 // Add a new movie
 app.post('/movies', async (req, res) => {
@@ -123,3 +123,5 @@ app.post('/api/login', async (req, res) => {
         res.status(500).json({ message: 'Server error during login.' });
     }
 });
+
+

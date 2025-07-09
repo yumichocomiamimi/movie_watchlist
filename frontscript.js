@@ -103,31 +103,15 @@ searchInput.addEventListener("blur", function () {
   }, 100);
 });
 
-function displayWatchlist() {
-  const container = document.getElementById("watchlist");
-  container.innerHTML = "";
-  if (watchlist.length === 0) {
-    container.innerHTML = "<span style='color:#e0f7fa;'>Your watchlist is empty.</span>";
-    return;
-  }
-  watchlist.forEach(movie => {
-    const item = document.createElement("div");
-    item.className = "movie";
-    item.innerHTML = `
-      <img src="${movie.poster && movie.poster !== 'N/A' ? movie.poster : 'http://via.placeholder.com/100x150?text=No+Image'}" alt="${movie.title}">
-      <div class="movie-info" tabindex="0">
-        <strong>${movie.title}</strong> (${movie.year})<br>
-        Genre: ${movie.genre}<br>
-        <em>Review:</em> ${movie.review || ''}<br>
-      </div>
-    `;
-    container.appendChild(item);
-  });
-}
+// Removed duplicate displayWatchlist definition to avoid function overwrite error.
 
 async function searchMovie() {
   const query = document.getElementById("searchInput").value.trim();
   const searchResults = document.getElementById("searchResults");
+  if (!searchResults) {
+    alert('Element with id "searchResults" not found in the HTML.');
+    return;
+  }
   searchResults.innerHTML = "";
 
   if (!query) {
@@ -145,33 +129,55 @@ async function searchMovie() {
       searchResults.innerHTML = "Error searching for movie.";
       return;
     }
-    const movie = await response.json();
+    let movies = await response.json();
 
-    // Fetch poster from OMDB if missing or "N/A"
-    if ((!movie.poster || movie.poster === "N/A") && movie.imdbID) {
-      try {
-        const posterRes = await fetch(`http://www.omdbapi.com/?i=${movie.imdbID}&apikey=${OMDB_API_KEY}`);
-        const posterData = await posterRes.json();
-        if (posterData.Poster && posterData.Poster !== "N/A") {
-          movie.poster = posterData.Poster;
-        }
-      } catch (err) {
-        console.error("Error fetching poster:", err);
+    // If the backend returns a single object or null, wrap it in an array for consistency
+    if (!Array.isArray(movies)) {
+      if (movies && typeof movies === "object") {
+        movies = [movies];
+      } else {
+        movies = [];
       }
     }
 
-    const resultDiv = document.createElement("div");
-    resultDiv.className = "movie";
-    resultDiv.innerHTML = `
-      <img src="${movie.poster && movie.poster !== 'N/A' ? movie.poster : 'http://via.placeholder.com/100x150?text=No+Image'}" alt="${movie.title}">
-      <div class="movie-info" tabindex="0">
-        <strong>${movie.title}</strong> (${movie.year})<br>
-        Genre: ${movie.genre}<br>
-        <em>Review:</em> ${movie.review || ''}<br>
-        <button onclick="addToWatchlist('${movie._id || movie.imdbID || ''}')">Add to Watchlist</button>
-      </div>
-    `;
-    searchResults.appendChild(resultDiv);
+    if (movies.length === 0) {
+      searchResults.innerHTML = "No movies found matching your query.";
+      return;
+    }
+
+    for (const movie of movies) {
+      // Fetch poster from OMDB if missing or "N/A"
+      if ((!movie.poster || movie.poster === "N/A") && movie.imdbID) {
+        try {
+          const posterRes = await fetch(`http://www.omdbapi.com/?i=${movie.imdbID}&apikey=${OMDB_API_KEY}`);
+          const posterData = await posterRes.json();
+          if (posterData.Poster && posterData.Poster !== "N/A") {
+            movie.poster = posterData.Poster;
+          }
+        } catch (err) {
+          console.error("Error fetching poster:", err);
+        }
+      }
+
+      const resultDiv = document.createElement("div");
+      resultDiv.className = "movie";
+      resultDiv.innerHTML = `
+        <img src="${movie.poster && movie.poster !== 'N/A' ? movie.poster : 'http://via.placeholder.com/100x150?text=No+Image'}" alt="${movie.title}">
+        <div class="movie-info" tabindex="0">
+          <strong>${movie.title}</strong> (${movie.year})<br>
+          Genre: ${movie.genre}<br>
+          <em>Review:</em> ${movie.review || ''}<br>
+          <button onclick="addToWatchlist('${movie._id || movie.imdbID || ''}')">Add to Watchlist</button>
+          <button onclick="showMovieDetails('${movie._id || movie.imdbID || ''}')">Details</button>
+        </div>
+      `;
+      // Add click event to show details when clicking on the movie image or info
+      resultDiv.querySelector("img").addEventListener("click", () => showMovieDetails(movie._id || movie.imdbID));
+      resultDiv.querySelector(".movie-info").addEventListener("click", (e) => {
+        if (e.target.tagName !== "BUTTON") showMovieDetails(movie._id || movie.imdbID);
+      });
+      searchResults.appendChild(resultDiv);
+    }
   } catch (err) {
     console.error("Error searching for movie:", err);
     searchResults.innerHTML = "Error searching for movie.";
@@ -182,11 +188,7 @@ function removeFromWatchlist(imdbID) {
   displayWatchlist();
 }
 
-window.removeFromWatchlist = removeFromWatchlist;
-
-// Update displayWatchlist to add remove button
-const originalDisplayWatchlist = displayWatchlist;
-displayWatchlist = function () {
+function displayWatchlist() {
   const container = document.getElementById("watchlist");
   container.innerHTML = "";
   if (watchlist.length === 0) {
@@ -203,11 +205,17 @@ displayWatchlist = function () {
         Genre: ${movie.genre}<br>
         <em>Review:</em> ${movie.review || ''}<br>
         <button onclick="removeFromWatchlist('${movie._id || movie.imdbID || ''}')">Remove</button>
+        <button onclick="showMovieDetails('${movie._id || movie.imdbID || ''}')">Details</button>
       </div>
     `;
+    // Add click event to show details when clicking on the movie image or info
+    item.querySelector("img").addEventListener("click", () => showMovieDetails(movie._id || movie.imdbID));
+    item.querySelector(".movie-info").addEventListener("click", (e) => {
+      if (e.target.tagName !== "BUTTON") showMovieDetails(movie._id || movie.imdbID);
+    });
     container.appendChild(item);
   });
-};
+}
 
 window.addToWatchlist = async function (imdbID) {
   const movie = allMovies.find(m => m.imdbID === imdbID || m._id === imdbID);
@@ -233,9 +241,51 @@ window.addToWatchlist = async function (imdbID) {
   }
 };
 
-displayWatchlist();
-  
-// Add event listener for search button
+// Movie details modal logic
+function showMovieDetails(id) {
+  let movie = allMovies.find(m => m.imdbID === id || m._id === id) || watchlist.find(m => m.imdbID === id || m._id === id);
+  if (!movie) return;
+
+  // Create modal if not exists
+  let modal = document.getElementById("movieDetailsModal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "movieDetailsModal";
+    Object.assign(modal.style, {
+      position: "fixed",
+      top: "0",
+      left: "0",
+      width: "100vw",
+      height: "100vh",
+      background: "rgba(0,0,0,0.7)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: "9999"
+    });
+    modal.innerHTML = `<div id="movieDetailsContent" style="background:#16213e;color:#e0f7fa;padding:24px;border-radius:8px;max-width:400px;min-width:260px;position:relative"></div>`;
+    document.body.appendChild(modal);
+    modal.addEventListener("click", function (e) {
+      if (e.target === modal) modal.style.display = "none";
+    });
+  }
+  const content = modal.querySelector("#movieDetailsContent");
+  content.innerHTML = `
+    <button style="position:absolute;top:8px;right:8px;background:#00e6ff;color:#16213e;border:none;border-radius:50%;width:28px;height:28px;cursor:pointer;font-size:18px;" onclick="document.getElementById('movieDetailsModal').style.display='none'">&times;</button>
+    <img src="${movie.poster && movie.poster !== 'N/A' ? movie.poster : 'http://via.placeholder.com/100x150?text=No+Image'}" alt="${movie.title}" style="width:120px;float:left;margin-right:16px;border-radius:4px;">
+    <div style="overflow:hidden;">
+      <h2 style="margin-top:0">${movie.title} (${movie.year})</h2>
+      <p><strong>Genre:</strong> ${movie.genre}</p>
+      <p><strong>Director:</strong> ${movie.director || "N/A"}</p>
+      <p><strong>Actors:</strong> ${movie.actors || "N/A"}</p>
+      <p><strong>Plot:</strong> ${movie.plot || "N/A"}</p>
+      <p><strong>Review:</strong> ${movie.review || "N/A"}</p>
+      <p><strong>IMDB ID:</strong> ${movie.imdbID || movie._id || "N/A"}</p>
+    </div>
+  `;
+  modal.style.display = "flex";
+}
+window.showMovieDetails = showMovieDetails;
 document.getElementById("searchButton").addEventListener("click", searchMovie);
 
 // Trigger search when Enter is pressed in the search input
