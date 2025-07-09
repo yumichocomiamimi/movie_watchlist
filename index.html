@@ -4,20 +4,93 @@
   <meta charset="utf-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Movie Watvvchlist</title>
+  <title>Movie Watchlist</title>
   <link rel="stylesheet" href="decor.css">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
   <script src="frontscript.js" defer></script>
 </head>
 <body>
-  <h1>Movie Watchlist</h1>
-  
-  <div id="searchBar">
-    <input type="text" id="searchInput" placeholder="Search for a movie...">
-    <button type="button" id="searchButton">Search</button>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-content">
+        <h1><i class="fas fa-film"></i> Movie Watchlist</h1>
+        <div class="header-actions">
+          <a href="admin" class="admin-link">
+            <i class="fas fa-cog"></i> Admin Panel
+          </a>
+          <button id="themeToggle" class="theme-toggle">
+            <i class="fas fa-moon"></i>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Search Section -->
+      <section class="search-section">
+        <div class="search-container">
+          <div class="search-box">
+            <i class="fas fa-search search-icon"></i>
+            <input type="text" id="searchInput" placeholder="Search for movies..." autocomplete="off">
+            <button type="button" id="searchButton" class="search-btn">
+              <i class="fas fa-plus"></i> Add Movie
+            </button>
+          </div>
+        </div>
+        <div id="searchResults" class="search-results"></div>
+      </section>
+
+      <!-- Watchlist Section -->
+      <section class="watchlist-section">
+        <div class="section-header">
+          <h2><i class="fas fa-list"></i> Your Watchlist</h2>
+          <div class="section-actions">
+            <button id="sortBtn" class="sort-btn">
+              <i class="fas fa-sort"></i> Sort
+            </button>
+            <div class="sort-dropdown" id="sortDropdown">
+              <button data-sort="title">Title (A-Z)</button>
+              <button data-sort="year">Year</button>
+              <button data-sort="genre">Genre</button>
+              <button data-sort="dateAdded">Date Added</button>
+            </div>
+            <button id="viewToggle" class="view-toggle">
+              <i class="fas fa-th-large"></i>
+            </button>
+          </div>
+        </div>
+        <div id="watchlist" class="watchlist"></div>
+        <div id="emptyState" class="empty-state" style="display: none;">
+          <i class="fas fa-film"></i>
+          <h3>Your watchlist is empty</h3>
+          <p>Start by searching and adding your favorite movies!</p>
+        </div>
+      </section>
+    </main>
+
+    <!-- Movie Details Modal -->
+    <div id="movieModal" class="modal">
+      <div class="modal-content">
+        <span class="close">&times;</span>
+        <div id="movieDetails" class="movie-details-modal"></div>
+      </div>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div id="loadingSpinner" class="loading-spinner" style="display: none;">
+      <div class="spinner"></div>
+      <p>Loading movies...</p>
+    </div>
+
+    <!-- Notification -->
+    <div id="notification" class="notification"></div>
   </div>
 
-  <div id="searchResults"></div>
-  <h2>Your Watchlist</h2>
-  <div id="watchlist"></div>
+  <!-- Floating Action Button -->
+  <button id="scrollToTop" class="scroll-to-top">
+    <i class="fas fa-arrow-up"></i>
+  </button>
 </body>
 </html>

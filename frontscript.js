@@ -1,297 +1,523 @@
 const OMDB_API_KEY = "8545112";
-const BASE_URL = "http://localhost:8080"; // Backend server URL
+const BASE_URL = "http://localhost:3000";
 let allMovies = [];
 let watchlist = [];
+let isGridView = true;
+let currentSort = 'title';
 
-// Fetch all movies from backend and populate allMovies
-fetch(`${BASE_URL}/movies`)
-  .then(res => res.json())
-  .then(data => {
-    allMovies = data;
-
-    // Fetch missing posters
-    allMovies.forEach((movie, idx) => {
-      if (!movie.poster && movie.imdbID) {
-        fetch(`http://www.omdbapi.com/?i=${movie.imdbID}&apikey=${OMDB_API_KEY}`)
-          .then(res => res.json())
-          .then(posterData => {
-            if (posterData.Poster && posterData.Poster !== "N/A") {
-              allMovies[idx].poster = posterData.Poster;
-
-              // Update UI if image was previously missing
-              document.querySelectorAll(".movie img").forEach(img => {
-                if (img.alt === movie.title) {
-                  img.src = posterData.Poster;
-                }
-              });
-            }
-          });
-      }
-    });
-
-    displayWatchlist(); // Only display after data is ready
-  });
-
-let suggestionBox = null;
+// UI Elements
 const searchInput = document.getElementById("searchInput");
-function highlightMatch(title, query) {
-  const idx = title.toLowerCase().indexOf(query);
-  if (idx === 0) {
-    return `<b>${title.slice(0, query.length)}</b>${title.slice(query.length)}`;
-  }
-  return title;
+const searchButton = document.getElementById("searchButton");
+const searchResults = document.getElementById("searchResults");
+const watchlistContainer = document.getElementById("watchlist");
+const emptyState = document.getElementById("emptyState");
+const sortBtn = document.getElementById("sortBtn");
+const sortDropdown = document.getElementById("sortDropdown");
+const viewToggle = document.getElementById("viewToggle");
+const scrollToTop = document.getElementById("scrollToTop");
+const modal = document.getElementById("movieModal");
+const movieDetails = document.getElementById("movieDetails");
+const notification = document.getElementById("notification");
+let suggestionBox = null;
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    loadMovies();
+    setupEventListeners();
+    setupScrollToTop();
+});
+
+// Load movies from backend
+async function loadMovies() {
+    showLoading(true);
+    try {
+        const response = await fetch(`${BASE_URL}/movies`);
+        if (response.ok) {
+            allMovies = await response.json();
+            
+            // Fetch missing posters
+            for (let i = 0; i < allMovies.length; i++) {
+                const movie = allMovies[i];
+                if (!movie.poster && movie.imdbID) {
+                    try {
+                        const posterRes = await fetch(`http://www.omdbapi.com/?i=${movie.imdbID}&apikey=${OMDB_API_KEY}`);
+                        const posterData = await posterRes.json();
+                        if (posterData.Poster && posterData.Poster !== "N/A") {
+                            allMovies[i].poster = posterData.Poster;
+                            // Update poster in backend
+                            await fetch(`${BASE_URL}/movies/${movie._id}/poster`, {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ poster: posterData.Poster })
+                            });
+                        }
+                    } catch (err) {
+                        console.error('Error fetching poster:', err);
+                    }
+                }
+            }
+            
+            displayWatchlist();
+        }
+    } catch (error) {
+        console.error('Error loading movies:', error);
+        showNotification('Error loading movies', 'error');
+    } finally {
+        showLoading(false);
+    }
 }
-searchInput.addEventListener("input", function () {
-  const query = this.value.trim().toLowerCase();
-  if (suggestionBox) suggestionBox.remove();
-  if (!query) return;
 
-  const suggestions = allMovies.filter(movie =>
-    movie.title.toLowerCase().includes(query)
-  );
-  if (suggestions.length === 0) return;
-
-  suggestionBox = document.createElement("div");
-  Object.assign(suggestionBox.style, {
-    position: "absolute",
-    background: "#16213e",
-    color: "#e0f7fa",
-    border: "1px solid #00e6ff",
-    borderRadius: "0 0 6px 6px",
-    width: searchInput.offsetWidth + "px",
-    maxHeight: "180px",
-    overflowY: "auto",
-    zIndex: "100",
-    left: searchInput.getBoundingClientRect().left + "px",
-    top: (searchInput.getBoundingClientRect().bottom + window.scrollY) + "px",
-    boxShadow: "0 2px 8px #00e6ff33"
-  });
-  suggestionBox.id = "suggestionBox";
-
-  suggestions.forEach(movie => {
-    const item = document.createElement("div");
-    item.innerHTML = highlightMatch(movie.title, query);
-    Object.assign(item.style, {
-      padding: "8px 12px",
-      cursor: "pointer"
+// Setup event listeners
+function setupEventListeners() {
+    // Search functionality
+    searchButton.addEventListener("click", searchMovie);
+    searchInput.addEventListener("keydown", function(e) {
+        if (e.key === "Enter") {
+            searchMovie();
+            if (suggestionBox) suggestionBox.remove();
+        }
     });
-
-    item.addEventListener("mousedown", function (e) {
-      e.preventDefault();
-      searchInput.value = movie.title;
-      if (suggestionBox) suggestionBox.remove();
-      searchMovie();
+    
+    // Search suggestions
+    searchInput.addEventListener("input", handleSearchInput);
+    searchInput.addEventListener("blur", function() {
+        setTimeout(() => {
+            if (suggestionBox) suggestionBox.remove();
+        }, 100);
     });
-    item.addEventListener("mouseover", () => item.style.background = "#00e6ff22");
-    item.addEventListener("mouseout", () => item.style.background = "transparent");
+    
+    // Sort functionality
+    sortBtn.addEventListener('click', () => {
+        sortDropdown.classList.toggle('show');
+    });
+    
+    sortDropdown.addEventListener('click', (e) => {
+        if (e.target.tagName === 'BUTTON') {
+            currentSort = e.target.dataset.sort;
+            sortMovies(currentSort);
+            sortDropdown.classList.remove('show');
+        }
+    });
+    
+    // View toggle
+    viewToggle.addEventListener('click', toggleView);
+    
+    // Modal close
+    document.querySelector('.close').addEventListener('click', () => {
+        modal.style.display = 'none';
+    });
+    
+    window.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.style.display = 'none';
+        }
+        if (!sortBtn.contains(e.target) && !sortDropdown.contains(e.target)) {
+            sortDropdown.classList.remove('show');
+        }
+        if (suggestionBox && !searchInput.contains(e.target)) {
+            suggestionBox.remove();
+        }
+    });
+}
 
-    suggestionBox.appendChild(item);
-  });
-
-  document.body.appendChild(suggestionBox);
-});
-
-document.addEventListener("click", function (e) {
-  if (suggestionBox && !searchInput.contains(e.target)) {
-    suggestionBox.remove();
-  }
-});
-
-searchInput.addEventListener("blur", function () {
-  setTimeout(() => {
+// Search input handler with suggestions
+function handleSearchInput() {
+    const query = searchInput.value.trim().toLowerCase();
     if (suggestionBox) suggestionBox.remove();
-  }, 100);
-});
-
-// Removed duplicate displayWatchlist definition to avoid function overwrite error.
-
-async function searchMovie() {
-  const query = document.getElementById("searchInput").value.trim();
-  const searchResults = document.getElementById("searchResults");
-  if (!searchResults) {
-    alert('Element with id "searchResults" not found in the HTML.');
-    return;
-  }
-  searchResults.innerHTML = "";
-
-  if (!query) {
-    searchResults.innerHTML = "Please enter a movie name.";
-    return;
-  }
-
-  try {
-    const response = await fetch(`${BASE_URL}/movies/search?title=${encodeURIComponent(query)}`);
-    if (response.status === 404) {
-      searchResults.innerHTML = "No movies found matching your query.";
-      return;
-    }
-    if (!response.ok) {
-      searchResults.innerHTML = "Error searching for movie.";
-      return;
-    }
-    let movies = await response.json();
-
-    // If the backend returns a single object or null, wrap it in an array for consistency
-    if (!Array.isArray(movies)) {
-      if (movies && typeof movies === "object") {
-        movies = [movies];
-      } else {
-        movies = [];
-      }
-    }
-
-    if (movies.length === 0) {
-      searchResults.innerHTML = "No movies found matching your query.";
-      return;
-    }
-
-    for (const movie of movies) {
-      // Fetch poster from OMDB if missing or "N/A"
-      if ((!movie.poster || movie.poster === "N/A") && movie.imdbID) {
-        try {
-          const posterRes = await fetch(`http://www.omdbapi.com/?i=${movie.imdbID}&apikey=${OMDB_API_KEY}`);
-          const posterData = await posterRes.json();
-          if (posterData.Poster && posterData.Poster !== "N/A") {
-            movie.poster = posterData.Poster;
-          }
-        } catch (err) {
-          console.error("Error fetching poster:", err);
-        }
-      }
-
-      const resultDiv = document.createElement("div");
-      resultDiv.className = "movie";
-      resultDiv.innerHTML = `
-        <img src="${movie.poster && movie.poster !== 'N/A' ? movie.poster : 'http://via.placeholder.com/100x150?text=No+Image'}" alt="${movie.title}">
-        <div class="movie-info" tabindex="0">
-          <strong>${movie.title}</strong> (${movie.year})<br>
-          Genre: ${movie.genre}<br>
-          <em>Review:</em> ${movie.review || ''}<br>
-          <button onclick="addToWatchlist('${movie._id || movie.imdbID || ''}')">Add to Watchlist</button>
-          <button onclick="showMovieDetails('${movie._id || movie.imdbID || ''}')">Details</button>
-        </div>
-      `;
-      // Add click event to show details when clicking on the movie image or info
-      resultDiv.querySelector("img").addEventListener("click", () => showMovieDetails(movie._id || movie.imdbID));
-      resultDiv.querySelector(".movie-info").addEventListener("click", (e) => {
-        if (e.target.tagName !== "BUTTON") showMovieDetails(movie._id || movie.imdbID);
-      });
-      searchResults.appendChild(resultDiv);
-    }
-  } catch (err) {
-    console.error("Error searching for movie:", err);
-    searchResults.innerHTML = "Error searching for movie.";
-  }
-}
-function removeFromWatchlist(imdbID) {
-  watchlist = watchlist.filter(m => m.imdbID !== imdbID && m._id !== imdbID);
-  displayWatchlist();
-}
-
-function displayWatchlist() {
-  const container = document.getElementById("watchlist");
-  container.innerHTML = "";
-  if (watchlist.length === 0) {
-    container.innerHTML = "<span style='color:#e0f7fa;'>Your watchlist is empty.</span>";
-    return;
-  }
-  watchlist.forEach(movie => {
-    const item = document.createElement("div");
-    item.className = "movie";
-    item.innerHTML = `
-      <img src="${movie.poster && movie.poster !== 'N/A' ? movie.poster : 'http://via.placeholder.com/100x150?text=No+Image'}" alt="${movie.title}">
-      <div class="movie-info" tabindex="0">
-        <strong>${movie.title}</strong> (${movie.year})<br>
-        Genre: ${movie.genre}<br>
-        <em>Review:</em> ${movie.review || ''}<br>
-        <button onclick="removeFromWatchlist('${movie._id || movie.imdbID || ''}')">Remove</button>
-        <button onclick="showMovieDetails('${movie._id || movie.imdbID || ''}')">Details</button>
-      </div>
-    `;
-    // Add click event to show details when clicking on the movie image or info
-    item.querySelector("img").addEventListener("click", () => showMovieDetails(movie._id || movie.imdbID));
-    item.querySelector(".movie-info").addEventListener("click", (e) => {
-      if (e.target.tagName !== "BUTTON") showMovieDetails(movie._id || movie.imdbID);
+    
+    if (!query) return;
+    
+    const suggestions = allMovies.filter(movie =>
+        movie.title.toLowerCase().includes(query)
+    ).slice(0, 5);
+    
+    if (suggestions.length === 0) return;
+    
+    suggestionBox = document.createElement("div");
+    suggestionBox.id = "suggestionBox";
+    
+    const searchBox = document.querySelector('.search-box');
+    const rect = searchBox.getBoundingClientRect();
+    
+    Object.assign(suggestionBox.style, {
+        position: "absolute",
+        left: rect.left + "px",
+        top: (rect.bottom + window.scrollY) + "px",
+        width: rect.width + "px",
+        zIndex: "1000"
     });
-    container.appendChild(item);
-  });
+    
+    suggestions.forEach(movie => {
+        const item = document.createElement("div");
+        item.innerHTML = highlightMatch(movie.title, query);
+        
+        item.addEventListener("mousedown", function(e) {
+            e.preventDefault();
+            searchInput.value = movie.title;
+            if (suggestionBox) suggestionBox.remove();
+            searchMovie();
+        });
+        
+        suggestionBox.appendChild(item);
+    });
+    
+    document.body.appendChild(suggestionBox);
 }
 
-window.addToWatchlist = async function (imdbID) {
-  const movie = allMovies.find(m => m.imdbID === imdbID || m._id === imdbID);
-  const searchResults = document.getElementById("searchResults");
-  if (movie && !watchlist.some(m => m.imdbID === imdbID || m._id === imdbID)) {
-    // Fetch poster if missing
-    if ((!movie.poster || movie.poster === "N/A") && movie.imdbID) {
-      try {
-        const res = await fetch(`http://www.omdbapi.com/?i=${movie.imdbID}&apikey=${OMDB_API_KEY}`);
-        const posterData = await res.json();
-        if (posterData.Poster && posterData.Poster !== "N/A") {
-          movie.poster = posterData.Poster;
-        }
-      } catch (err) {
-        console.error("Error fetching poster:", err);
-      }
+function highlightMatch(title, query) {
+    const idx = title.toLowerCase().indexOf(query.toLowerCase());
+    if (idx >= 0) {
+        return `${title.slice(0, idx)}<b>${title.slice(idx, idx + query.length)}</b>${title.slice(idx + query.length)}`;
     }
-    watchlist.push(movie);
-    displayWatchlist();
-    searchResults.innerHTML = '<span style="color:#00e6ff;">Added to watchlist!</span>';
-  } else {
-    searchResults.innerHTML = '<span style="color:#ff1744;">Already in watchlist.</span>';
-  }
+    return title;
+}
+// Search movies
+async function searchMovie() {
+    const query = searchInput.value.trim();
+    searchResults.innerHTML = "";
+    
+    if (!query) {
+        showNotification("Please enter a movie name", "warning");
+        return;
+    }
+    
+    showLoading(true);
+    
+    try {
+        const response = await fetch(`${BASE_URL}/movies/search?title=${encodeURIComponent(query)}`);
+        
+        if (response.status === 404) {
+            searchResults.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-search"></i>
+                    <h3>No movies found</h3>
+                    <p>Try searching with different keywords</p>
+                </div>
+            `;
+            return;
+        }
+        
+        if (!response.ok) {
+            throw new Error('Search failed');
+        }
+        
+        let movies = await response.json();
+        if (!Array.isArray(movies)) {
+            movies = movies ? [movies] : [];
+        }
+        
+        if (movies.length === 0) {
+            searchResults.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-search"></i>
+                    <h3>No movies found</h3>
+                    <p>Try searching with different keywords</p>
+                </div>
+            `;
+            return;
+        }
+        
+        // Fetch missing posters
+        for (const movie of movies) {
+            if ((!movie.poster || movie.poster === "N/A") && movie.imdbID) {
+                try {
+                    const posterRes = await fetch(`http://www.omdbapi.com/?i=${movie.imdbID}&apikey=${OMDB_API_KEY}`);
+                    const posterData = await posterRes.json();
+                    if (posterData.Poster && posterData.Poster !== "N/A") {
+                        movie.poster = posterData.Poster;
+                    }
+                } catch (err) {
+                    console.error("Error fetching poster:", err);
+                }
+            }
+        }
+        
+        renderMovies(movies, searchResults, true);
+        
+    } catch (error) {
+        console.error("Error searching movies:", error);
+        showNotification("Error searching for movies", "error");
+    } finally {
+        showLoading(false);
+    }
+}
+
+// Display watchlist
+function displayWatchlist() {
+    if (allMovies.length === 0) {
+        emptyState.style.display = 'block';
+        watchlistContainer.style.display = 'none';
+        return;
+    }
+    
+    emptyState.style.display = 'none';
+    watchlistContainer.style.display = 'grid';
+    
+    const sortedMovies = sortMovies(currentSort, [...allMovies]);
+    renderMovies(sortedMovies, watchlistContainer, false);
+}
+
+// Render movies
+function renderMovies(movies, container, isSearchResult = false) {
+    container.innerHTML = "";
+    
+    movies.forEach(movie => {
+        const movieCard = createMovieCard(movie, isSearchResult);
+        container.appendChild(movieCard);
+    });
+}
+
+// Create movie card
+function createMovieCard(movie, isSearchResult = false) {
+    const movieDiv = document.createElement("div");
+    movieDiv.className = "movie";
+    
+    const poster = movie.poster && movie.poster !== 'N/A' 
+        ? movie.poster 
+        : 'https://via.placeholder.com/300x450?text=No+Image';
+    
+    movieDiv.innerHTML = `
+        <img src="${poster}" alt="${movie.title}" loading="lazy">
+        <div class="movie-info">
+            <h3 class="movie-title">${movie.title}</h3>
+            <div class="movie-meta">
+                ${movie.year ? `<span class="movie-year"><i class="fas fa-calendar"></i> ${movie.year}</span>` : ''}
+                ${movie.genre ? `<span class="movie-genre"><i class="fas fa-tag"></i> ${movie.genre}</span>` : ''}
+                ${movie.imdb_rating ? `<span class="movie-rating"><i class="fas fa-star"></i> ${movie.imdb_rating}/10</span>` : ''}
+            </div>
+            ${movie.review ? `<p class="movie-review">${movie.review}</p>` : ''}
+            <div class="movie-actions">
+                ${isSearchResult 
+                    ? `<button class="btn-primary" onclick="addToWatchlist('${movie._id || movie.imdbID}')">
+                         <i class="fas fa-plus"></i> Add to List
+                       </button>`
+                    : `<button class="btn-danger" onclick="removeFromWatchlist('${movie._id || movie.imdbID}')">
+                         <i class="fas fa-trash"></i> Remove
+                       </button>`
+                }
+                <button class="btn-secondary" onclick="showMovieDetails('${movie._id || movie.imdbID}')">
+                    <i class="fas fa-info-circle"></i> Details
+                </button>
+            </div>
+        </div>
+    `;
+    
+    // Add click event for movie details
+    movieDiv.querySelector('img').addEventListener('click', () => showMovieDetails(movie._id || movie.imdbID));
+    
+    return movieDiv;
+}
+
+// Add to watchlist
+window.addToWatchlist = async function(id) {
+    const movie = allMovies.find(m => m._id === id || m.imdbID === id);
+    if (!movie) {
+        showNotification("Movie not found", "error");
+        return;
+    }
+    
+    if (allMovies.some(m => (m._id === id || m.imdbID === id))) {
+        showNotification("Movie already in watchlist", "warning");
+        return;
+    }
+    
+    // Add movie to database if not exists
+    try {
+        const response = await fetch(`${BASE_URL}/movies`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(movie)
+        });
+        
+        if (response.ok) {
+            const addedMovie = await response.json();
+            allMovies.push(addedMovie);
+            displayWatchlist();
+            showNotification("Added to watchlist!", "success");
+            
+            // Clear search results
+            searchResults.innerHTML = "";
+            searchInput.value = "";
+        } else {
+            throw new Error('Failed to add movie');
+        }
+    } catch (error) {
+        console.error("Error adding to watchlist:", error);
+        showNotification("Error adding to watchlist", "error");
+    }
 };
 
-// Movie details modal logic
-function showMovieDetails(id) {
-  let movie = allMovies.find(m => m.imdbID === id || m._id === id) || watchlist.find(m => m.imdbID === id || m._id === id);
-  if (!movie) return;
+// Remove from watchlist
+window.removeFromWatchlist = async function(id) {
+    const movie = allMovies.find(m => m._id === id || m.imdbID === id);
+    if (!movie) {
+        showNotification("Movie not found", "error");
+        return;
+    }
+    
+    if (!confirm(`Remove "${movie.title}" from your watchlist?`)) {
+        return;
+    }
+    
+    try {
+        // Note: We don't actually delete from database, just remove from UI
+        // If you want to delete from database, implement DELETE endpoint
+        allMovies = allMovies.filter(m => m._id !== id && m.imdbID !== id);
+        displayWatchlist();
+        showNotification("Removed from watchlist", "success");
+    } catch (error) {
+        console.error("Error removing from watchlist:", error);
+        showNotification("Error removing from watchlist", "error");
+    }
+};
 
-  // Create modal if not exists
-  let modal = document.getElementById("movieDetailsModal");
-  if (!modal) {
-    modal = document.createElement("div");
-    modal.id = "movieDetailsModal";
-    Object.assign(modal.style, {
-      position: "fixed",
-      top: "0",
-      left: "0",
-      width: "100vw",
-      height: "100vh",
-      background: "rgba(0,0,0,0.7)",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      zIndex: "9999"
-    });
-    modal.innerHTML = `<div id="movieDetailsContent" style="background:#16213e;color:#e0f7fa;padding:24px;border-radius:8px;max-width:400px;min-width:260px;position:relative"></div>`;
-    document.body.appendChild(modal);
-    modal.addEventListener("click", function (e) {
-      if (e.target === modal) modal.style.display = "none";
-    });
-  }
-  const content = modal.querySelector("#movieDetailsContent");
-  content.innerHTML = `
-    <button style="position:absolute;top:8px;right:8px;background:#00e6ff;color:#16213e;border:none;border-radius:50%;width:28px;height:28px;cursor:pointer;font-size:18px;" onclick="document.getElementById('movieDetailsModal').style.display='none'">&times;</button>
-    <img src="${movie.poster && movie.poster !== 'N/A' ? movie.poster : 'http://via.placeholder.com/100x150?text=No+Image'}" alt="${movie.title}" style="width:120px;float:left;margin-right:16px;border-radius:4px;">
-    <div style="overflow:hidden;">
-      <h2 style="margin-top:0">${movie.title} (${movie.year})</h2>
-      <p><strong>Genre:</strong> ${movie.genre}</p>
-      <p><strong>Director:</strong> ${movie.director || "N/A"}</p>
-      <p><strong>Actors:</strong> ${movie.actors || "N/A"}</p>
-      <p><strong>Plot:</strong> ${movie.plot || "N/A"}</p>
-      <p><strong>Review:</strong> ${movie.review || "N/A"}</p>
-      <p><strong>IMDB ID:</strong> ${movie.imdbID || movie._id || "N/A"}</p>
-    </div>
-  `;
-  modal.style.display = "flex";
+// Show movie details in modal
+window.showMovieDetails = async function(id) {
+    const movie = allMovies.find(m => m._id === id || m.imdbID === id);
+    if (!movie) {
+        showNotification("Movie not found", "error");
+        return;
+    }
+    
+    // Fetch additional details from OMDB if needed
+    let detailedMovie = movie;
+    if (movie.imdbID && (!movie.plot || !movie.director)) {
+        try {
+            const response = await fetch(`http://www.omdbapi.com/?i=${movie.imdbID}&apikey=${OMDB_API_KEY}&plot=full`);
+            const omdbData = await response.json();
+            if (omdbData.Response === "True") {
+                detailedMovie = { ...movie, ...omdbData };
+            }
+        } catch (err) {
+            console.error("Error fetching movie details:", err);
+        }
+    }
+    
+    const poster = detailedMovie.Poster || detailedMovie.poster || 'https://via.placeholder.com/300x450?text=No+Image';
+    
+    movieDetails.innerHTML = `
+        <div class="movie-details-modal">
+            <img src="${poster}" alt="${detailedMovie.Title || detailedMovie.title}">
+            <div class="movie-details-content">
+                <h2>${detailedMovie.Title || detailedMovie.title}</h2>
+                <div class="movie-details-meta">
+                    <div>
+                        <strong>Year</strong>
+                        <span>${detailedMovie.Year || detailedMovie.year || 'N/A'}</span>
+                    </div>
+                    <div>
+                        <strong>Genre</strong>
+                        <span>${detailedMovie.Genre || detailedMovie.genre || 'N/A'}</span>
+                    </div>
+                    <div>
+                        <strong>Director</strong>
+                        <span>${detailedMovie.Director || 'N/A'}</span>
+                    </div>
+                    <div>
+                        <strong>Actors</strong>
+                        <span>${detailedMovie.Actors || 'N/A'}</span>
+                    </div>
+                    <div>
+                        <strong>Runtime</strong>
+                        <span>${detailedMovie.Runtime || 'N/A'}</span>
+                    </div>
+                    <div>
+                        <strong>IMDB Rating</strong>
+                        <span>${detailedMovie.imdbRating || detailedMovie.imdb_rating || 'N/A'}</span>
+                    </div>
+                    <div>
+                        <strong>Local Rating</strong>
+                        <span>${detailedMovie.imdb_rating ? `${detailedMovie.imdb_rating}/10` : 'N/A'}</span>
+                    </div>
+                </div>
+                ${detailedMovie.Plot ? `
+                    <div class="movie-details-review">
+                        <h3>Plot</h3>
+                        <p>${detailedMovie.Plot}</p>
+                    </div>
+                ` : ''}
+                ${detailedMovie.review ? `
+                    <div class="movie-details-review">
+                        <h3>Your Review</h3>
+                        <p>${detailedMovie.review}</p>
+                    </div>
+                ` : ''}
+            </div>
+        </div>
+    `;
+    
+    modal.style.display = 'block';
+};
+
+// Sort movies
+function sortMovies(sortType, movies = allMovies) {
+    const sorted = [...movies];
+    
+    switch (sortType) {
+        case 'title':
+            sorted.sort((a, b) => a.title.localeCompare(b.title));
+            break;
+        case 'year':
+            sorted.sort((a, b) => (b.year || 0) - (a.year || 0));
+            break;
+        case 'genre':
+            sorted.sort((a, b) => (a.genre || '').localeCompare(b.genre || ''));
+            break;
+        case 'dateAdded':
+            sorted.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+            break;
+    }
+    
+    if (movies === allMovies) {
+        renderMovies(sorted, watchlistContainer, false);
+    }
+    
+    return sorted;
 }
-window.showMovieDetails = showMovieDetails;
-document.getElementById("searchButton").addEventListener("click", searchMovie);
 
-// Trigger search when Enter is pressed in the search input
-document.getElementById("searchInput").addEventListener("keydown", function (e) {
-  if (e.key === "Enter") {
-    searchMovie();
-    if (suggestionBox) suggestionBox.remove();
-  }
-});
+// Toggle view
+function toggleView() {
+    isGridView = !isGridView;
+    const icon = viewToggle.querySelector('i');
+    
+    if (isGridView) {
+        watchlistContainer.classList.remove('list-view');
+        icon.className = 'fas fa-th-large';
+    } else {
+        watchlistContainer.classList.add('list-view');
+        icon.className = 'fas fa-list';
+    }
+}
+
+// Setup scroll to top
+function setupScrollToTop() {
+    window.addEventListener('scroll', () => {
+        if (window.pageYOffset > 300) {
+            scrollToTop.classList.add('show');
+        } else {
+            scrollToTop.classList.remove('show');
+        }
+    });
+    
+    scrollToTop.addEventListener('click', () => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+}
+
+// Show/hide loading
+function showLoading(show) {
+    const spinner = document.getElementById('loadingSpinner');
+    if (spinner) {
+        spinner.style.display = show ? 'block' : 'none';
+    }
+}
+
+// Show notification
+function showNotification(message, type = 'info') {
+    notification.textContent = message;
+    notification.className = `notification ${type} show`;
+    
+    setTimeout(() => {
+        notification.classList.remove('show');
+    }, 3000);
+}

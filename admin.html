@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Movie Watchlist - Admin Panel</title>
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+    <div class="admin-container">
+        <!-- Login Form -->
+        <div id="loginForm" class="login-form">
+            <div class="login-card">
+                <h1>Admin Login</h1>
+                <form id="adminLoginForm">
+                    <div class="input-group">
+                        <label for="username">Username</label>
+                        <input type="text" id="username" name="username" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" name="password" required>
+                    </div>
+                    <button type="submit" class="login-btn">Login</button>
+                </form>
+                <div class="back-link">
+                    <a href="index.html">← Back to Movie Watchlist</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin Dashboard -->
+        <div id="adminDashboard" class="admin-dashboard" style="display: none;">
+            <header class="admin-header">
+                <h1>Admin Dashboard</h1>
+                <div class="header-actions">
+                    <span id="welcomeMessage"></span>
+                    <button id="logoutBtn" class="logout-btn">Logout</button>
+                </div>
+            </header>
+
+            <nav class="admin-nav">
+                <button class="nav-btn active" data-section="stats">Statistics</button>
+                <button class="nav-btn" data-section="movies">Manage Movies</button>
+                <button class="nav-btn" data-section="add-movie">Add Movie</button>
+            </nav>
+
+            <main class="admin-content">
+                <!-- Statistics Section -->
+                <section id="stats-section" class="content-section active">
+                    <h2>Statistics</h2>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <h3>Total Movies</h3>
+                            <div class="stat-number" id="totalMovies">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Total Users</h3>
+                            <div class="stat-number" id="totalUsers">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Most Popular Genre</h3>
+                            <div class="stat-text" id="popularGenre">-</div>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <h3>Movies by Genre</h3>
+                        <div id="genreChart"></div>
+                    </div>
+                </section>
+
+                <!-- Movies Management Section -->
+                <section id="movies-section" class="content-section">
+                    <h2>Manage Movies</h2>
+                    <div class="search-container">
+                        <input type="text" id="movieSearch" placeholder="Search movies...">
+                    </div>
+                    <div class="movies-table-container">
+                        <table id="moviesTable">
+                            <thead>
+                                <tr>
+                                    <th>Poster</th>
+                                    <th>Title</th>
+                                    <th>Year</th>
+                                    <th>Genre</th>
+                                    <th>IMDB ID</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="moviesTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Add Movie Section -->
+                <section id="add-movie-section" class="content-section">
+                    <h2>Add New Movie</h2>
+                    <form id="addMovieForm" class="movie-form">
+                        <div class="form-group">
+                            <label for="movieTitle">Title *</label>
+                            <input type="text" id="movieTitle" name="title" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="movieYear">Year</label>
+                            <input type="number" id="movieYear" name="year" min="1900" max="2030">
+                        </div>
+                        <div class="form-group">
+                            <label for="movieGenre">Genre</label>
+                            <input type="text" id="movieGenre" name="genre">
+                        </div>
+                        <div class="form-group">
+                            <label for="moviePoster">Poster URL</label>
+                            <input type="url" id="moviePoster" name="poster">
+                        </div>
+                        <div class="form-group">
+                            <label for="movieImdbID">IMDB ID</label>
+                            <input type="text" id="movieImdbID" name="imdbID">
+                        </div>
+                        <div class="form-group">
+                            <label for="movieReview">Review</label>
+                            <textarea id="movieReview" name="review" rows="4"></textarea>
+                        </div>
+                        <button type="submit" class="submit-btn">Add Movie</button>
+                    </form>
+                </section>
+            </main>
+        </div>
+
+        <!-- Edit Movie Modal -->
+        <div id="editModal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h2>Edit Movie</h2>
+                <form id="editMovieForm" class="movie-form">
+                    <input type="hidden" id="editMovieId">
+                    <div class="form-group">
+                        <label for="editMovieTitle">Title *</label>
+                        <input type="text" id="editMovieTitle" name="title" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="editMovieYear">Year</label>
+                        <input type="number" id="editMovieYear" name="year" min="1900" max="2030">
+                    </div>
+                    <div class="form-group">
+                        <label for="editMovieGenre">Genre</label>
+                        <input type="text" id="editMovieGenre" name="genre">
+                    </div>
+                    <div class="form-group">
+                        <label for="editMoviePoster">Poster URL</label>
+                        <input type="url" id="editMoviePoster" name="poster">
+                    </div>
+                    <div class="form-group">
+                        <label for="editMovieImdbID">IMDB ID</label>
+                        <input type="text" id="editMovieImdbID" name="imdbID">
+                    </div>
+                    <div class="form-group">
+                        <label for="editMovieReview">Review</label>
+                        <textarea id="editMovieReview" name="review" rows="4"></textarea>
+                    </div>
+                    <button type="submit" class="submit-btn">Update Movie</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="admin.js"></script>
+</body>
+</html>
