@@ -1,21 +1,8 @@
-import mongoose from 'mongoose';
 import dotenv from 'dotenv';
+import { movieOperations } from './database.js';
 
 // Load environment variables
 dotenv.config();
-
-// Movie schema
-const movieSchema = new mongoose.Schema({
-    title: { type: String, required: true },
-    year: Number,
-    genre: String,
-    poster: String,
-    imdbID: String,
-    review: String,
-    imdb_rating: Number
-});
-
-const Movie = mongoose.model('Movie', movieSchema);
 
 // Tamil movies data from movie_list.dart
 const tamilMovies = [
@@ -660,17 +647,21 @@ const tamilMovies = [
 
 async function seedDatabase() {
     try {
-        // Connect to MongoDB
-        await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/movies');
-        console.log('Connected to MongoDB');
+        console.log('Starting SQLite database seeding...');
 
-        // Clear existing movies (optional)
-        await Movie.deleteMany({});
-        console.log('Cleared existing movies');
+        // Get existing movies to check for duplicates
+        const existingMovies = movieOperations.getAll();
+        console.log(`Found ${existingMovies.length} existing movies in database`);
 
         // Remove duplicates based on title and year
         const uniqueMovies = [];
         const seen = new Set();
+        
+        // Add existing movies to seen set
+        existingMovies.forEach(movie => {
+            const key = `${movie.title}-${movie.year}`;
+            seen.add(key);
+        });
         
         for (const movie of tamilMovies) {
             const key = `${movie.title}-${movie.year}`;
@@ -680,16 +671,22 @@ async function seedDatabase() {
             }
         }
 
-        // Insert movies
-        const insertedMovies = await Movie.insertMany(uniqueMovies);
-        console.log(`Inserted ${insertedMovies.length} movies successfully`);
+        // Insert new movies
+        let insertedCount = 0;
+        for (const movie of uniqueMovies) {
+            try {
+                movieOperations.create(movie);
+                insertedCount++;
+            } catch (error) {
+                console.warn(`Failed to insert movie "${movie.title}": ${error.message}`);
+            }
+        }
+        
+        console.log(`Inserted ${insertedCount} new movies successfully`);
 
         // Display some statistics
-        const totalMovies = await Movie.countDocuments();
-        const genreStats = await Movie.aggregate([
-            { $group: { _id: '$genre', count: { $sum: 1 } } },
-            { $sort: { count: -1 } }
-        ]);
+        const totalMovies = movieOperations.count();
+        const genreStats = movieOperations.getByGenre();
 
         console.log(`\nDatabase Statistics:`);
         console.log(`Total movies: ${totalMovies}`);
@@ -700,9 +697,6 @@ async function seedDatabase() {
 
     } catch (error) {
         console.error('Error seeding database:', error);
-    } finally {
-        await mongoose.connection.close();
-        console.log('\nDatabase connection closed');
     }
 }
 

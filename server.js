@@ -1,5 +1,4 @@
 import express from 'express';
-import mongoose from 'mongoose';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import jwt from 'jsonwebtoken';
@@ -7,6 +6,7 @@ import bcrypt from 'bcryptjs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import User from './user.js';
+import { movieOperations } from './database.js';
 
 // Load environment variables
 dotenv.config();
@@ -21,31 +21,14 @@ app.use(cors()); // Allow requests from frontend
 // Serve static files
 app.use(express.static(__dirname));
 
-// MongoDB connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/movies')
-.then(() => {
-    console.log('MongoDB connected');
-    // Start server only after DB connects
-    const PORT = process.env.PORT || 3000;
-    app.listen(PORT, () => {
-        console.log(`Server running on http://localhost:${PORT}`);
-    });
-}).catch(err => {
-    console.error('MongoDB connection error:', err);
-});
+// Initialize SQLite database (tables are created automatically)
+console.log('SQLite database initialized');
 
-// Movie schema and model
-const movieSchema = new mongoose.Schema({
-    title: { type: String, required: true },
-    year: Number,
-    genre: String,
-    poster: String,
-    imdbID: String,
-    review: String,
-    imdb_rating: Number
+// Start server
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
 });
-
-const Movie = mongoose.model('Movie', movieSchema);
 
 // Search for a movie by title (partial match, case-insensitive, for autocomplete)
 app.get('/movies/search', async (req, res) => {
@@ -54,8 +37,7 @@ app.get('/movies/search', async (req, res) => {
         return res.status(400).json({ error: 'Title query parameter is required.' });
     }
     try {
-        // Use regex for partial, case-insensitive match
-        const movies = await Movie.find({ title: { $regex: title, $options: 'i' } }).limit(10);
+        const movies = movieOperations.searchByTitle(title);
         if (movies.length === 0) {
             return res.status(404).json({ error: 'Movie not found.' });
         }
@@ -69,7 +51,7 @@ app.get('/movies/search', async (req, res) => {
 // Get all movies
 app.get('/movies', async (_req, res) => {
     try {
-        const movies = await Movie.find();
+        const movies = movieOperations.getAll();
         res.json(movies);
     } catch (err) {
         console.error('Error fetching movies:', err);
@@ -77,15 +59,13 @@ app.get('/movies', async (_req, res) => {
     }
 });
 
-
 // Add a new movie
 app.post('/movies', async (req, res) => {
     try {
         if (!req.body || !req.body.title) {
             return res.status(400).json({ error: 'Movie title is required.' });
         }
-        const movie = new Movie(req.body);
-        await movie.save();
+        const movie = movieOperations.create(req.body);
         res.status(201).json(movie);
     } catch (err) {
         console.error('Error adding movie:', err);
@@ -98,7 +78,11 @@ app.patch('/movies/:id/poster', async (req, res) => {
     const { id } = req.params;
     const { poster } = req.body;
     try {
-        const updated = await Movie.findByIdAndUpdate(id, { poster }, { new: true });
+        const success = movieOperations.updatePoster(id, poster);
+        if (!success) {
+            return res.status(404).json({ error: 'Movie not found' });
+        }
+        const updated = movieOperations.getById(id);
         res.json(updated);
     } catch (err) {
         console.error('Error updating poster:', err);
@@ -186,7 +170,7 @@ app.post('/api/admin/login', async (req, res) => {
 // Admin: Get all movies with full details
 app.get('/api/admin/movies', verifyAdmin, async (req, res) => {
     try {
-        const movies = await Movie.find().sort({ title: 1 });
+        const movies = movieOperations.getAll();
         res.json(movies);
     } catch (err) {
         console.error('Error fetching admin movies:', err);
@@ -198,13 +182,18 @@ app.get('/api/admin/movies', verifyAdmin, async (req, res) => {
 app.delete('/api/admin/movies/:id', verifyAdmin, async (req, res) => {
     try {
         const { id } = req.params;
-        const deletedMovie = await Movie.findByIdAndDelete(id);
+        const movie = movieOperations.getById(id);
         
-        if (!deletedMovie) {
+        if (!movie) {
             return res.status(404).json({ error: 'Movie not found' });
         }
         
-        res.json({ message: 'Movie deleted successfully', movie: deletedMovie });
+        const success = movieOperations.delete(id);
+        if (!success) {
+            return res.status(500).json({ error: 'Failed to delete movie' });
+        }
+        
+        res.json({ message: 'Movie deleted successfully', movie: movie });
     } catch (err) {
         console.error('Error deleting movie:', err);
         res.status(500).json({ error: 'Failed to delete movie.' });
@@ -217,16 +206,13 @@ app.put('/api/admin/movies/:id', verifyAdmin, async (req, res) => {
         const { id } = req.params;
         const updateData = req.body;
         
-        const updatedMovie = await Movie.findByIdAndUpdate(
-            id, 
-            updateData, 
-            { new: true, runValidators: true }
-        );
+        const success = movieOperations.update(id, updateData);
         
-        if (!updatedMovie) {
+        if (!success) {
             return res.status(404).json({ error: 'Movie not found' });
         }
         
+        const updatedMovie = movieOperations.getById(id);
         res.json(updatedMovie);
     } catch (err) {
         console.error('Error updating movie:', err);
@@ -237,12 +223,9 @@ app.put('/api/admin/movies/:id', verifyAdmin, async (req, res) => {
 // Admin: Get statistics
 app.get('/api/admin/stats', verifyAdmin, async (req, res) => {
     try {
-        const totalMovies = await Movie.countDocuments();
+        const totalMovies = movieOperations.count();
         const totalUsers = await User.countDocuments();
-        const moviesByGenre = await Movie.aggregate([
-            { $group: { _id: '$genre', count: { $sum: 1 } } },
-            { $sort: { count: -1 } }
-        ]);
+        const moviesByGenre = movieOperations.getByGenre();
         
         res.json({
             totalMovies,

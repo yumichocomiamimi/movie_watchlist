@@ -244,7 +244,12 @@ async function searchMovie() {
 
 // Display watchlist
 function displayWatchlist() {
-    if (allMovies.length === 0) {
+    displayMovies(allMovies);
+}
+
+// Display movies in grid format
+function displayMovies(movies) {
+    if (movies.length === 0) {
         emptyState.style.display = 'block';
         watchlistContainer.style.display = 'none';
         return;
@@ -253,7 +258,7 @@ function displayWatchlist() {
     emptyState.style.display = 'none';
     watchlistContainer.style.display = 'grid';
     
-    const sortedMovies = sortMovies(currentSort, [...allMovies]);
+    const sortedMovies = sortMovies(currentSort, [...movies]);
     renderMovies(sortedMovies, watchlistContainer, false);
 }
 
@@ -279,20 +284,25 @@ function createMovieCard(movie, isSearchResult = false) {
     movieDiv.innerHTML = `
         <img src="${poster}" alt="${movie.title}" loading="lazy">
         <div class="movie-info">
-            <h3 class="movie-title">${movie.title}</h3>
+            <h3 class="movie-title">
+                ${movie.title}
+                ${movie.year ? `<span class="movie-year">(${movie.year})</span>` : ''}
+            </h3>
             <div class="movie-meta">
-                ${movie.year ? `<span class="movie-year"><i class="fas fa-calendar"></i> ${movie.year}</span>` : ''}
-                ${movie.genre ? `<span class="movie-genre"><i class="fas fa-tag"></i> ${movie.genre}</span>` : ''}
-                ${movie.imdb_rating ? `<span class="movie-rating"><i class="fas fa-star"></i> ${movie.imdb_rating}/10</span>` : ''}
+                ${movie.genre ? `<div class="movie-genre">Genre: ${movie.genre}</div>` : ''}
+                ${movie.imdb_rating ? `<div class="movie-rating"><i class="fas fa-star"></i> ${movie.imdb_rating}/10</div>` : ''}
             </div>
-            ${movie.review ? `<p class="movie-review">${movie.review}</p>` : ''}
+            ${movie.review ? `<div class="movie-review">
+                <strong>Review:</strong><br>
+                ${movie.review}
+            </div>` : ''}
             <div class="movie-actions">
                 ${isSearchResult 
                     ? `<button class="btn-primary" onclick="addToWatchlist('${movie._id || movie.imdbID}')">
                          <i class="fas fa-plus"></i> Add to List
                        </button>`
-                    : `<button class="btn-danger" onclick="removeFromWatchlist('${movie._id || movie.imdbID}')">
-                         <i class="fas fa-trash"></i> Remove
+                    : `<button class="btn-secondary" onclick="uploadPoster('${movie._id || movie.id}')">
+                         <i class="fas fa-upload"></i> Upload
                        </button>`
                 }
                 <button class="btn-secondary" onclick="showMovieDetails('${movie._id || movie.imdbID}')">
@@ -397,7 +407,17 @@ window.showMovieDetails = async function(id) {
     
     movieDetails.innerHTML = `
         <div class="movie-details-modal">
-            <img src="${poster}" alt="${detailedMovie.Title || detailedMovie.title}">
+            <div class="movie-poster-section">
+                <img src="${poster}" alt="${detailedMovie.Title || detailedMovie.title}" id="modalPoster">
+                <div class="poster-actions">
+                    <button class="btn-secondary" onclick="changePoster('${detailedMovie._id || detailedMovie.id}')">
+                        <i class="fas fa-image"></i> Change Cover
+                    </button>
+                    <button class="btn-secondary" onclick="uploadPoster('${detailedMovie._id || detailedMovie.id}')">
+                        <i class="fas fa-upload"></i> Upload Image
+                    </button>
+                </div>
+            </div>
             <div class="movie-details-content">
                 <h2>${detailedMovie.Title || detailedMovie.title}</h2>
                 <div class="movie-details-meta">
@@ -447,6 +467,140 @@ window.showMovieDetails = async function(id) {
     `;
     
     modal.style.display = 'block';
+};
+
+// Change movie poster
+window.changePoster = async function(id) {
+    const movie = allMovies.find(m => m._id === id || m.id === id);
+    if (!movie) {
+        showNotification("Movie not found", "error");
+        return;
+    }
+    
+    const newPosterUrl = prompt("Enter new poster URL:", movie.poster || '');
+    if (newPosterUrl === null) return; // User cancelled
+    
+    if (newPosterUrl.trim() === '') {
+        showNotification("Please enter a valid URL", "error");
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${BASE_URL}/movies/${movie._id || movie.id}/poster`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ poster: newPosterUrl.trim() })
+        });
+        
+        if (response.ok) {
+            // Update local movie data
+            const movieIndex = allMovies.findIndex(m => m._id === id || m.id === id);
+            if (movieIndex !== -1) {
+                allMovies[movieIndex].poster = newPosterUrl.trim();
+            }
+            
+            // Update modal image
+            const modalPoster = document.getElementById('modalPoster');
+            if (modalPoster) {
+                modalPoster.src = newPosterUrl.trim();
+            }
+            
+            // Refresh the movie display
+            displayMovies(allMovies);
+            
+            showNotification("Poster updated successfully", "success");
+        } else {
+            showNotification("Failed to update poster", "error");
+        }
+    } catch (error) {
+        console.error('Error updating poster:', error);
+        showNotification("Error updating poster", "error");
+    }
+};
+
+// Upload movie poster
+window.uploadPoster = async function(id) {
+    const movie = allMovies.find(m => m._id === id || m.id === id);
+    if (!movie) {
+        showNotification("Movie not found", "error");
+        return;
+    }
+    
+    // Create file input element
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.style.display = 'none';
+    
+    fileInput.onchange = async function(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+            showNotification("Please select a valid image file", "error");
+            return;
+        }
+        
+        // Validate file size (max 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            showNotification("Image size should be less than 5MB", "error");
+            return;
+        }
+        
+        try {
+            // Convert to base64
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                const base64Image = e.target.result;
+                
+                // Update poster in backend
+                const response = await fetch(`${BASE_URL}/movies/${movie._id || movie.id}/poster`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ poster: base64Image })
+                });
+                
+                if (response.ok) {
+                    // Update local movie data
+                    const movieIndex = allMovies.findIndex(m => m._id === id || m.id === id);
+                    if (movieIndex !== -1) {
+                        allMovies[movieIndex].poster = base64Image;
+                    }
+                    
+                    // Update modal image
+                    const modalPoster = document.getElementById('modalPoster');
+                    if (modalPoster) {
+                        modalPoster.src = base64Image;
+                    }
+                    
+                    // Refresh the movie display
+                    displayMovies(allMovies);
+                    
+                    showNotification("Poster uploaded successfully", "success");
+                } else {
+                    showNotification("Failed to upload poster", "error");
+                }
+            };
+            
+            reader.onerror = function() {
+                showNotification("Error reading file", "error");
+            };
+            
+            reader.readAsDataURL(file);
+            
+        } catch (error) {
+            console.error('Error uploading poster:', error);
+            showNotification("Error uploading poster", "error");
+        }
+        
+        // Clean up
+        document.body.removeChild(fileInput);
+    };
+    
+    // Trigger file selection
+    document.body.appendChild(fileInput);
+    fileInput.click();
 };
 
 // Sort movies

@@ -95,7 +95,8 @@ addMovieForm.addEventListener('submit', async (e) => {
         genre: formData.get('genre'),
         poster: formData.get('poster'),
         imdbID: formData.get('imdbID'),
-        review: formData.get('review')
+        review: formData.get('review'),
+        imdb_rating: formData.get('imdb_rating') ? parseFloat(formData.get('imdb_rating')) : undefined
     };
 
     // Remove empty fields
@@ -139,7 +140,8 @@ editMovieForm.addEventListener('submit', async (e) => {
         genre: formData.get('genre'),
         poster: formData.get('poster'),
         imdbID: formData.get('imdbID'),
-        review: formData.get('review')
+        review: formData.get('review'),
+        imdb_rating: formData.get('imdb_rating') ? parseFloat(formData.get('imdb_rating')) : undefined
     };
 
     // Remove empty fields
@@ -328,6 +330,7 @@ function editMovie(movieId) {
     document.getElementById('editMovieGenre').value = movie.genre || '';
     document.getElementById('editMoviePoster').value = movie.poster || '';
     document.getElementById('editMovieImdbID').value = movie.imdbID || '';
+    document.getElementById('editMovieRating').value = movie.imdb_rating || '';
     document.getElementById('editMovieReview').value = movie.review || '';
 
     editModal.style.display = 'block';

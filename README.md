@@ -6,7 +6,12 @@ A modern, full-stack movie watchlist application with a beautiful dark theme UI,
 
 ### User Features
 - **Browse Movies**: View a curated collection of Tamil movies with ratings and details
-- **Search Functionality**: Real-time search with autocomplete suggestions
+- **### Environment Variables
+- `PORT`: Server port (default: 3000)
+- `ADMIN_USERNAME`: Admin panel username
+- `ADMIN_PASSWORD`: Admin panel password
+- `OMDB_API_KEY`: OMDB API key for movie data
+- `JWT_SECRET`: Secret key for JWT token generationFunctionality**: Real-time search with autocomplete suggestions
 - **Movie Details**: Detailed view with plot, cast, ratings, and reviews
 - **Responsive Design**: Works seamlessly on desktop, tablet, and mobile devices
 - **Dark Theme**: Modern, eye-friendly dark theme with cyan accents
@@ -31,8 +36,8 @@ A modern, full-stack movie watchlist application with a beautiful dark theme UI,
 ### Backend
 - **Node.js** - Runtime environment
 - **Express.js** - Web application framework
-- **MongoDB** - Database for storing movies and users
-- **Mongoose** - MongoDB object modeling
+- **SQLite** - Lightweight database for storing movies and users
+- **better-sqlite3** - Fast SQLite driver for Node.js
 - **JWT** - Authentication and authorization
 - **bcryptjs** - Password hashing
 - **CORS** - Cross-origin resource sharing
@@ -47,11 +52,13 @@ A modern, full-stack movie watchlist application with a beautiful dark theme UI,
 movie_watchlist/
 ├── server.js                 # Main server file
 ├── user.js                   # User model
+├── database.js               # SQLite database operations
 ├── seed-database.js          # Database seeding script
 ├── package.json              # Dependencies and scripts
 ├── .env                      # Environment variables
 ├── README.md                 # Documentation
 ├── movie_list.dart           # Tamil movies data
+├── movies.db                 # SQLite database file (created automatically)
 │
 ├── Frontend/
 │   ├── index.html            # Main application page
@@ -67,21 +74,10 @@ movie_watchlist/
 
 ### Prerequisites
 - Node.js (v14 or higher)
-- MongoDB (local installation or Atlas cloud database)
 - Git
 
-### MongoDB Installation
-**Option 1: Local MongoDB Installation**
-1. Download MongoDB Community Server from https://www.mongodb.com/try/download/community
-2. Install and start MongoDB service:
-   - **Windows**: MongoDB will run as a service automatically
-   - **macOS**: `brew services start mongodb/brew/mongodb-community`
-   - **Linux**: `sudo systemctl start mongod`
-
-**Option 2: MongoDB Atlas (Cloud)**
-1. Create account at https://www.mongodb.com/atlas
-2. Create a free cluster
-3. Update MONGODB_URI in .env with your Atlas connection string
+### SQLite Database
+This application uses SQLite, a lightweight, file-based database that requires no separate installation or setup. The database file (`movies.db`) will be created automatically when you first run the application.
 
 ### 1. Clone Repository
 ```bash
@@ -97,7 +93,6 @@ npm install
 ### 3. Environment Setup
 Create a `.env` file in the root directory:
 ```env
-MONGODB_URI=mongodb://localhost:27017/movies
 PORT=3000
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=admin123
@@ -106,7 +101,7 @@ JWT_SECRET=your_jwt_secret_here
 ```
 
 ### 4. Database Setup
-Start MongoDB service and seed the database:
+Seed the database with Tamil movies:
 ```bash
 # Seed database with Tamil movies
 npm run seed
@@ -327,25 +322,29 @@ Authorization: Bearer <token>
 
 ## 📊 Database Schema
 
-### Movie Schema
-```javascript
-{
-  title: { type: String, required: true },
-  year: Number,
-  genre: String,
-  poster: String,
-  imdbID: String,
-  review: String,
-  imdb_rating: Number
-}
+### Movie Schema (SQLite)
+```sql
+CREATE TABLE movies (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    year INTEGER,
+    genre TEXT,
+    poster TEXT,
+    imdbID TEXT,
+    review TEXT,
+    imdb_rating REAL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 ```
 
-### User Schema
-```javascript
-{
-  email: { type: String, required: true, unique: true },
-  password: { type: String, required: true }
-}
+### User Schema (SQLite)
+```sql
+CREATE TABLE users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 ```
 
 ## 🎯 Usage Examples
@@ -372,13 +371,13 @@ Authorization: Bearer <token>
 ## 🐛 Known Issues & Solutions
 
 ### Issue: Movies not loading
-**Solution**: Ensure MongoDB is running and connection string is correct
+**Solution**: Check if the SQLite database file exists and has proper permissions
 
 ### Issue: Admin login failing
 **Solution**: Verify admin credentials in .env file
 
-### Issue: OMDB posters not loading
-**Solution**: Check OMDB API key and internet connection
+### Issue: Database errors
+**Solution**: Delete movies.db file and restart the application to recreate the database
 
 ## 🤝 Contributing
 

@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^12.2.0",
     "cors": "^2.8.5",
     "dotenv": "^16.0.3",
     "express": "^5.1.0",
@@ -16,6 +17,7 @@
     "start": "node server.js",
     "dev": "node server.js",
     "seed": "node seed-database.js",
+    "dummy": "node add-dummy-data.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

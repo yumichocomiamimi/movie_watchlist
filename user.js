@@ -1,12 +1,44 @@
-import mongoose from 'mongoose';
+import { userOperations } from './database.js';
 
-// Prevent "model overwrite" or re-declaration issue in watch/debug mode
-const userSchema = new mongoose.Schema({
-    email: { type: String, required: true, unique: true },
-    password: { type: String, required: true }
-});
+// User class to mimic Mongoose model behavior
+class User {
+    constructor(data) {
+        this.email = data.email;
+        this.password = data.password;
+        this.id = data.id;
+    }
 
-// Use existing model if it exists (important for hot-reloading or debugging)
-const User = mongoose.models.User || mongoose.model('User', userSchema);
+    // Save user to database
+    async save() {
+        try {
+            const result = userOperations.create(this);
+            this.id = result.id;
+            return this;
+        } catch (error) {
+            throw new Error('Error saving user: ' + error.message);
+        }
+    }
+
+    // Static method to find user by email
+    static async findOne(query) {
+        try {
+            if (query.email) {
+                return userOperations.getByEmail(query.email);
+            }
+            return null;
+        } catch (error) {
+            throw new Error('Error finding user: ' + error.message);
+        }
+    }
+
+    // Static method to count documents
+    static async countDocuments() {
+        try {
+            return userOperations.count();
+        } catch (error) {
+            throw new Error('Error counting users: ' + error.message);
+        }
+    }
+}
 
 export default User;
